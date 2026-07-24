@@ -312,15 +312,26 @@ input { font-family: inherit; }
 }
 
 .cell__lanes {
-  /* reserves vertical space so overlay blocks have somewhere to land */
+  /* default 0; expanded only for cells that actually have task blocks */
+  height: 0;
+  flex-shrink: 0;
+}
+
+.cell--has-tasks .cell__lanes {
   height: calc(var(--max-lanes) * (var(--lane-h) + var(--lane-gap)));
 }
 
 .cell__milestones {
-  margin-top: auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;     /* default: vertically centered in available space */
   gap: 2px;
+  min-height: 0;
+}
+
+.cell--has-tasks .cell__milestones {
+  justify-content: flex-end;   /* when tasks present, milestone stays at the bottom */
 }
 
 .milestone {

@@ -110,6 +110,7 @@
     const tasksInMonth = [];
     let maxLanes = 0;
     const laneUseByRow = new Map(); // rowIndex -> Set of lanes used
+    const daysWithTasks = new Set(); // day-of-month numbers that have at least one task block
     for (const t of tasks) {
       const tStart = dayStart(t.startDate);
       const tEnd = dayStart(t.endDate);
@@ -126,6 +127,10 @@
           span: endOffset - startOffset + 1,
           lane,
         });
+        // Track which days have tasks (for per-cell layout decisions)
+        const segStartDay = Math.round((s.segStart - monthStart) / DAY_MS) + 1;
+        const segEndDay = Math.round((s.segEnd - monthStart) / DAY_MS) + 1;
+        for (let dn = segStartDay; dn <= segEndDay; dn++) daysWithTasks.add(dn);
         const rowSet = laneUseByRow.get(Math.floor(startOffset / 7)) || new Set();
         rowSet.add(lane);
         laneUseByRow.set(Math.floor(startOffset / 7), rowSet);
@@ -192,6 +197,7 @@
     for (let d = 1; d <= daysInMonth; d++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+      if (daysWithTasks.has(d)) cell.classList.add('cell--has-tasks');
 
       const dayNum = document.createElement('div');
       dayNum.className = 'cell__day-number';
