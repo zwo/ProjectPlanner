@@ -11,18 +11,33 @@
 
   // Metrics — must stay in sync with CSS variables in styles.css
   const METRICS = {
-    cellW: 140,
+    cellW: 140, // legacy reference; actual width now driven by 1fr grid columns
     laneH: 28,
     laneGap: 4,
     weekdayRowH: 32,
     dayNumberH: 24,
     cellPadTop: 4,
+    cellPadBottom: 4,
     reservedBottom: 40,
+    milestoneH: 18,
+    milestoneGap: 2,
+    minRowH: 64,
   };
   const LANE_UNIT = METRICS.laneH + METRICS.laneGap;       // 32
   const LANES_OFFSET = METRICS.cellPadTop + METRICS.dayNumberH; // 28
-  // rowH matches .cell min-height: 24 + maxLanes*32 + 40 = 64 + maxLanes*32
-  const rowH = (maxLanes) => 64 + maxLanes * LANE_UNIT;
+  // rowH preserves the original baseline (64 + lanes*32, which already
+  // reserves 32px for one milestone) and adds extra only when a row has
+  // more milestones than that reserve can fit.
+  const BASELINE_MS_RESERVE = 32;
+  function milestonesHeight(count) {
+    if (count <= 0) return 0;
+    return count * METRICS.milestoneH + (count - 1) * METRICS.milestoneGap;
+  }
+  function rowH(lanes, milestones = 0) {
+    const base = METRICS.minRowH + lanes * LANE_UNIT;
+    const extra = Math.max(0, milestonesHeight(milestones) - BASELINE_MS_RESERVE);
+    return base + extra;
+  }
 
   /* ---------- Pastel color (golden-angle HSL) ----------
      Uses task.id as the index so deletions don't cause color collisions
@@ -108,7 +123,6 @@
 
     // Determine tasks touching this month + count lanes used here
     const tasksInMonth = [];
-    let maxLanes = 0;
     const laneUseByRow = new Map(); // rowIndex -> Set of lanes used
     const daysWithTasks = new Set(); // day-of-month numbers that have at least one task block
     for (const t of tasks) {
@@ -137,18 +151,7 @@
       }
       if (segs.length) tasksInMonth.push({ task: t, segs });
     }
-    // maxLanes across all weeks in month (use global max for simplicity, but local is enough)
-    for (const rowSet of laneUseByRow.values()) {
-      if (rowSet.size > maxLanes) maxLanes = rowSet.size;
-    }
-    // Better: maxLanes should be max lane index + 1 across all rows
-    let maxLaneIndex = -1;
-    for (const rowSet of laneUseByRow.values()) {
-      for (const l of rowSet) if (l > maxLaneIndex) maxLaneIndex = l;
-    }
-    maxLanes = Math.max(maxLaneIndex + 1, 0);
-
-    // Milestones within this month
+    // Milestones within this month (computed early so per-row heights can account for them)
     const milestonesByDay = new Map(); // day-of-month -> [milestone]
     for (const m of milestones) {
       const mDate = new Date(m.startDate);
@@ -159,11 +162,32 @@
       }
     }
 
+    // Compute per-row maxLanes and max milestone count — weeks with no tasks
+    // stay at default height, weeks with tasks expand based on lane count,
+    // and weeks with many milestones on a single day expand further.
+    const numRows = totalCells / 7;
+    const maxLanesByRow = new Array(numRows).fill(0);
+    const maxMilestonesByRow = new Array(numRows).fill(0);
+    for (const [rowIdx, laneSet] of laneUseByRow.entries()) {
+      let maxLaneIdx = -1;
+      for (const l of laneSet) if (l > maxLaneIdx) maxLaneIdx = l;
+      maxLanesByRow[rowIdx] = maxLaneIdx + 1;
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const rowIdx = Math.floor((offsetMon + d - 1) / 7);
+      const count = milestonesByDay.get(d)?.length || 0;
+      if (count > maxMilestonesByRow[rowIdx]) maxMilestonesByRow[rowIdx] = count;
+    }
+    const rowHByRow = maxLanesByRow.map((lanes, i) => rowH(lanes, maxMilestonesByRow[i]));
+    // Cumulative top offset for each week row (where the row starts, just past weekday header)
+    const rowTopOffsets = [METRICS.weekdayRowH];
+    for (let i = 0; i < numRows; i++) {
+      rowTopOffsets.push(rowTopOffsets[i] + rowHByRow[i]);
+    }
+
     // Build the card
     const card = document.createElement('section');
     card.className = 'month-card';
-    card.style.setProperty('--max-lanes', maxLanes);
-    card.style.setProperty('--row-h', `${rowH(maxLanes)}px`);
 
     const title = document.createElement('h2');
     title.className = 'month-card__title';
@@ -177,6 +201,12 @@
     // ---- Grid layer ----
     const grid = document.createElement('div');
     grid.className = 'month-grid';
+    // Set per-row heights so weeks without tasks stay at default height
+    // and weeks with tasks expand based on their lane count.
+    grid.style.gridTemplateRows = [
+      `${METRICS.weekdayRowH}px`,
+      ...rowHByRow.map(h => `${h}px`),
+    ].join(' ');
     container.appendChild(grid);
 
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -187,16 +217,19 @@
       grid.appendChild(el);
     });
 
-    // Leading empty cells
+    // Leading empty cells (always in row 0 / first week)
     for (let i = 0; i < offsetMon; i++) {
       const el = document.createElement('div');
       el.className = 'cell cell--empty';
+      el.style.setProperty('--max-lanes', maxLanesByRow[0] || 0);
       grid.appendChild(el);
     }
     // Day cells
     for (let d = 1; d <= daysInMonth; d++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+      const rowIdx = Math.floor((offsetMon + d - 1) / 7);
+      cell.style.setProperty('--max-lanes', maxLanesByRow[rowIdx] || 0);
       if (daysWithTasks.has(d)) cell.classList.add('cell--has-tasks');
 
       const dayNum = document.createElement('div');
@@ -230,9 +263,11 @@
     }
     // Trailing empty cells to fill the last week
     const trailing = totalCells - offsetMon - daysInMonth;
+    const lastRowIdx = numRows - 1;
     for (let i = 0; i < trailing; i++) {
       const el = document.createElement('div');
       el.className = 'cell cell--empty';
+      el.style.setProperty('--max-lanes', maxLanesByRow[lastRowIdx] || 0);
       grid.appendChild(el);
     }
 
@@ -241,7 +276,6 @@
     overlay.className = 'month-overlay';
     container.appendChild(overlay);
 
-    const rH = rowH(maxLanes);
     for (const { task, segs } of tasksInMonth) {
       const color = pastelColor(task.id);
       const label = task.description || 'task';
@@ -249,9 +283,11 @@
         const block = document.createElement('div');
         block.className = 'task-block';
         block.style.background = color;
-        block.style.left = `${seg.colIndex * METRICS.cellW}px`;
-        block.style.width = `${seg.span * METRICS.cellW}px`;
-        block.style.top = `${METRICS.weekdayRowH + seg.rowIndex * rH + LANES_OFFSET + seg.lane * LANE_UNIT}px`;
+        // Use percentages so blocks stretch with the fluid 1fr grid columns
+        block.style.left = `${(seg.colIndex / 7) * 100}%`;
+        block.style.width = `${(seg.span / 7) * 100}%`;
+        // Use cumulative row offset so each week's height is independent
+        block.style.top = `${rowTopOffsets[seg.rowIndex] + LANES_OFFSET + seg.lane * LANE_UNIT}px`;
         block.textContent = label;
         overlay.appendChild(block);
       }
