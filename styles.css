@@ -188,6 +188,14 @@ input { font-family: inherit; }
   height: 14px;
   border-radius: 3px;
   flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.task-item__swatch:hover {
+  transform: scale(1.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .task-item__swatch--milestone {
@@ -196,6 +204,13 @@ input { font-family: inherit; }
   text-align: center;
   line-height: 14px;
   font-size: 14px;
+  cursor: default;
+  border: none;
+}
+
+.task-item__swatch--milestone:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .task-item__desc {
@@ -530,4 +545,76 @@ input { font-family: inherit; }
 .modal__actions {
   display: flex;
   gap: 8px;
+}
+
+/* ============================================================
+   Color picker modal
+   ============================================================ */
+.color-modal {
+  width: 320px;
+}
+
+.color-preview {
+  height: 72px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  margin-bottom: 12px;
+  background: #ffffff;
+  transition: background 0.1s ease;
+}
+
+.color-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.color-hex-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-width: 24px;
+}
+
+.color-hex-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  text-transform: lowercase;
+}
+.color-hex-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.color-palette {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.color-palette__swatch {
+  aspect-ratio: 1;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.color-palette__swatch:hover {
+  transform: scale(1.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.color-palette__swatch.is-active {
+  box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 4px white;
+}
+
+.color-native-btn {
+  width: 100%;
+  padding: 8px 12px;
 }

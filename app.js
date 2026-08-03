@@ -83,7 +83,11 @@
     const swatch = document.createElement('span');
     if (task.type === 'task') {
       swatch.className = 'task-item__swatch';
-      swatch.style.background = window.__cal.pastelColor(task.id);
+      swatch.title = 'Click to change color';
+      swatch.style.background = window.__cal.getTaskColor(task.id);
+      swatch.addEventListener('click', () => {
+        openColorPickerForTask(task, swatch);
+      });
     } else {
       swatch.className = 'task-item__swatch task-item__swatch--milestone';
       swatch.textContent = '★';
@@ -117,6 +121,7 @@
       const idx = state.tasks.findIndex(t => t.id === task.id);
       if (idx >= 0) state.tasks.splice(idx, 1);
       window.__cal.forgetPastel(task.id);
+      window.__cal.clearCustomColor(task.id);
       state.pastelAssigned.delete(task.id);
       renderList();
       updateGenerateBtn();
@@ -128,6 +133,23 @@
     item.appendChild(del);
 
     return item;
+  }
+
+  /* ---------- Color picker modal ---------- */
+  function openColorPickerForTask(task, swatchEl) {
+    const currentColor = window.__cal.getTaskColor(task.id);
+    window.openColorPicker({
+      currentColor,
+      onConfirm: (newColor) => {
+        task.customColor = newColor;
+        window.__cal.setCustomColor(task.id, newColor);
+        swatchEl.style.background = newColor;
+        if (els.calendarView.children.length) {
+          generateCalendar();
+        }
+      },
+      onCancel: () => { /* nothing to undo — swatch was not mutated */ },
+    });
   }
 
   /* ---------- Generate calendar ---------- */

@@ -57,6 +57,39 @@
   function clearPastelCache() { PASTEL_CACHE.clear(); }
   function forgetPastel(taskId) { PASTEL_CACHE.delete(taskId); }
 
+  /* ---------- Custom colors (user overrides) ---------- */
+  const CUSTOM_COLORS = new Map(); // taskId -> css color (hex/rgb/hsl)
+  function setCustomColor(taskId, color) {
+    if (color) CUSTOM_COLORS.set(taskId, color);
+    else CUSTOM_COLORS.delete(taskId);
+  }
+  function clearCustomColor(taskId) { CUSTOM_COLORS.delete(taskId); }
+  function getTaskColor(taskId) {
+    return CUSTOM_COLORS.has(taskId) ? CUSTOM_COLORS.get(taskId) : pastelColor(taskId);
+  }
+
+  /* Pick readable text color (dark on light, light on dark) so the task
+     description stays legible even if the user chooses a dark color. */
+  function getContrastTextColor(cssColor) {
+    let r, g, b;
+    if (cssColor && cssColor.startsWith('#')) {
+      const hex = cssColor.slice(1);
+      const full = hex.length === 3
+        ? hex.split('').map(c => c + c).join('')
+        : hex;
+      r = parseInt(full.slice(0, 2), 16);
+      g = parseInt(full.slice(2, 4), 16);
+      b = parseInt(full.slice(4, 6), 16);
+    } else if (cssColor && cssColor.startsWith('hsl')) {
+      // Pastel colors are all light; keep dark text.
+      return '#1a1a1a';
+    } else {
+      return '#1a1a1a';
+    }
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.55 ? '#1a1a1a' : '#ffffff';
+  }
+
   /* ---------- Date helpers ---------- */
   function dayStart(d) {
     const x = new Date(d);
@@ -277,12 +310,14 @@
     container.appendChild(overlay);
 
     for (const { task, segs } of tasksInMonth) {
-      const color = pastelColor(task.id);
+      const color = getTaskColor(task.id);
+      const textColor = getContrastTextColor(color);
       const label = task.description || 'task';
       for (const seg of segs) {
         const block = document.createElement('div');
         block.className = 'task-block';
         block.style.background = color;
+        block.style.color = textColor;
         // Use percentages so blocks stretch with the fluid 1fr grid columns
         block.style.left = `${(seg.colIndex / 7) * 100}%`;
         block.style.width = `${(seg.span / 7) * 100}%`;
@@ -339,5 +374,8 @@
     pastelColor,
     clearPastelCache,
     forgetPastel,
+    setCustomColor,
+    clearCustomColor,
+    getTaskColor,
   };
 })();
